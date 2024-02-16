@@ -13,9 +13,4 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     }
   },
-  server: {
-    headers: {
-      "Referrer-Policy": "no-referrer-when-downgrade",
-    }
-  }
 })
