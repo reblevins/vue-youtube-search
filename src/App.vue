@@ -194,6 +194,7 @@ table {
     &:last-child {
       padding-right: 0;
       text-align: center;
+      min-width: 200px;
     }
   }
 }
