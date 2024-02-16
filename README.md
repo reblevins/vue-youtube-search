@@ -16,4 +16,4 @@ Rename the file in the root of the project called `.env.local.example` to `.env.
 npm run dev
 ```
 
-Now you can navigate to [http://localhost:5173/](http://localhost:5173/) and once there, you will need to log in using the Google-generated login button.
+Now you can navigate to [http://localhost:5173/](http://localhost:5173/).
