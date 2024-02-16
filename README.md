@@ -1,6 +1,6 @@
 # vue-youtube-search
 
-This app was created using the `npm create vue@latest` command which generates a Vue 3/Vite boilerplate app.
+This app was created using the `npm create vue@latest` command which generates a Vue 3/Vite boilerplate app. Everything in `src/App.vue` and `src/components/TableRow.vue` was written by me. The rest was created by the Vue cli.
 
 ## Project Setup
 

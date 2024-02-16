@@ -30,20 +30,15 @@
         <td colspan="4"><div>Videos will show here once you have searched for something.</div></td>
       </tr>
     </template>
-    <template v-else>
-      <tr v-for="video in mappedVideos" :key="video">
-        <td><img :src="video.thumbnail" /></td>
-        <td><a :href="`https://www.youtube.com/watch?v=${video.videoId}`" target="_blank">{{ video.title }}</a></td>
-        <td>{{ video.description }}</td>
-        <td>{{ video.comments || "Comments disabled" }}</td>
-      </tr>
-    </template>
+    <TableRow v-else v-bind="video" v-for="video in mappedVideos" :key="video" />
   </tbody>
 </table>
 </template>
 
 <script setup>
 import { ref, watch, computed, onMounted } from 'vue'
+
+import TableRow from './components/TableRow.vue'
 
 const loggedIn = ref(false)
 const appAuthorized = ref(true)
@@ -72,7 +67,6 @@ watch(videos, () => {
         "videoId": video.id.videoId,
         "maxResults": 100,
       }).then(response => {
-        console.log(response.result.pageInfo.totalResults)
         videos.value[index].comments = response.result.pageInfo.totalResults
       },
         function (err) {
