@@ -2,7 +2,7 @@
 <tr>
   <td><img :src="thumbnail" /></td>
   <td><a :href="`https://www.youtube.com/watch?v=${videoId}`" target="_blank">{{ title }}</a></td>
-  <td>{{ description }}</td>
+  <td>{{ description || "no description provided" }}</td>
   <td>{{ comments || "Comments disabled" }}</td>
 </tr>
 </template>
