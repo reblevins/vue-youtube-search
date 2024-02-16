@@ -1,66 +1,69 @@
 <template>
-<GoogleLogin :callback="callback" v-if="!gapiClientLoaded"/>
+<h1>YouTube Search App</h1>
+<input id="search_term" v-model="searchTerm" @keyup.enter="handleClickSearch">
+<button @click="handleClickSearch">Search</button>
+<button @click="handleClickClear">Clear</button>
 
-<div v-else>
-  <input id="search_term" v-model="searchTerm">
-  <button @click="handleClickSearch">Search</button>
-  
-  <select v-model="sortBy">
-    <option value="date">Date</option>
-    <option value="rating">Rating</option>
-    <option value="relevance">Relevance</option>
-  </select>
-  <table>
-      <table v-if="videos.length > 0">
-        <thead>
-          <tr>
-            <th></th>
-            <th>Title</th>
-            <th>Description</th>
-            <th># of comments</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="video in sortedVideos" :key="video">
-            <td><img :src="video.thumbnail" /></td>
-            <td>{{ video.title }}</td>
-            <td>{{ video.description }}</td>
-            <td>{{ video.comments || "No comments" }}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <p v-else>No videos to show!</p>
-  </table>
-</div>
+<select v-model="orderBy">
+  <option value="date">Date</option>
+  <option value="rating">Rating</option>
+  <option value="relevance">Relevance</option>
+</select>
+<div v-if="loading" class="loading">Searching...</div>
+<table v-else cellpadding="0" cellspacing="0">
+  <thead>
+    <tr>
+      <th></th>
+      <th>Title</th>
+      <th>Description</th>
+      <th># of comments</th>
+    </tr>
+  </thead>
+  <tbody>
+    <template v-if="videos.length === 0 && noResults">
+      <tr class="no-videos">
+        <td colspan="4"><div>There were no results for your search. Please try again.</div></td>
+      </tr>
+    </template>
+    <template v-else-if="videos.length === 0">
+      <tr class="no-videos">
+        <td colspan="4"><div>Videos will show here once you have searched for something.</div></td>
+      </tr>
+    </template>
+    <template v-else>
+      <tr v-for="video in mappedVideos" :key="video">
+        <td><img :src="video.thumbnail" /></td>
+        <td><a :href="`https://www.youtube.com/watch?v=${video.videoId}`" target="_blank">{{ video.title }}</a></td>
+        <td>{{ video.description }}</td>
+        <td>{{ video.comments || "Comments disabled" }}</td>
+      </tr>
+    </template>
+  </tbody>
+</table>
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
 
 const loggedIn = ref(false)
-const gapiClientLoaded = ref(false)
-const searchTerm = ref('dog')
+const appAuthorized = ref(true)
+const searchTerm = ref('')
+const loading = ref(false)
+const noResults = ref(false)
 const videos = ref([])
-const sortBy = ref('date')
+const orderBy = ref('date')
 
-const callback = (response) => {
-  // This callback will be triggered when the user selects or login to
-  // his Google account from the popup
-  console.log("Handle the response", response)
-  loggedIn.value = true
-}
-
-watch(loggedIn, (value) => {
-  console.log(value)
-  if (value === true) {
-    window.gapi.client.setApiKey("AIzaSyCwnzmEgvN2kzf-Y9KDX13YVQsd-VVLLZ8");
-    return window.gapi.client.load("https://www.googleapis.com/discovery/v1/apis/youtube/v3/rest")
-      .then(function () { gapiClientLoaded.value = true },
-        function (err) { console.error("Error loading GAPI client for API", err); })
-  }
+onMounted(() => {
+  // Set the api key and load the GAPI client
+  gapi.client.setApiKey(import.meta.env.VITE_GOOGLE_API_KEY)
+  return gapi.client.load("https://www.googleapis.com/discovery/v1/apis/youtube/v3/rest")
+    .then(function() { console.log("GAPI client loaded") },
+      function(err) { console.error("Error loading GAPI client for API", err) })
 })
 
+// Watch the videos array and once it is populated, iterate over them fetching comment counts
+// for each video. That gets saved to the comments property of the video which then reactively
+// populates in the view.
 watch(videos, () => {
   if (videos.value.length > 0) {
     videos.value.forEach((video, index) => {
@@ -73,24 +76,30 @@ watch(videos, () => {
         videos.value[index].comments = response.result.pageInfo.totalResults
       },
         function (err) {
+          // If there was an error it is most likely a 403 "commentsDisabled" error meaning that the video
+          // in question has disabled comments.
           console.error("Execute error", err)
         })
     })
   }
 })
 
-watch(sortBy, (newValue, oldValue) => {
+// Watch the value for the sorting dropdown and once it has changed, call search again.
+watch(orderBy, (newValue, oldValue) => {
   if (newValue !== oldValue) {
     handleClickSearch()
   }
 })
 
-const sortedVideos = computed(() => {
+const mappedVideos = computed(() => {
   if (videos.value.length === 0) return []
 
-  return videos.value.map(video => {
+  const mappedVideos = videos.value
+
+  return mappedVideos.map(video => {
     return {
       thumbnail: video.snippet.thumbnails.default.url,
+      videoId: video.id.videoId,
       title: video.snippet.title,
       description: video.snippet.description,
       comments: video.comments,
@@ -100,20 +109,92 @@ const sortedVideos = computed(() => {
 
 async function handleClickSearch() {
   if (!searchTerm.value) return
+  loading.value = true
+  noResults.value = false
 
-  const response = await window.gapi.client.youtube.search.list({
-    "part": [
-      "snippet",
-    ],
-    "order": sortBy.value,
-    "type": "video",
-    "maxResults": 10,
-    "q": searchTerm.value,
-  })
-  videos.value = response.result.items
-  console.log(videos.value)
+  try {
+    const response = await window.gapi.client.youtube.search.list({
+      "part": [
+        "snippet",
+      ],
+      "order": orderBy.value,
+      "type": "video",
+      "maxResults": 10,
+      "q": searchTerm.value,
+    })
+    videos.value = response.result.items
+    if (videos.value.length === 0) noResults.value = true
+  } catch(error) {
+    console.log(error)
+  }
+  loading.value = false
 }
 
-
+function handleClickClear() {
+  searchTerm.value = ''
+  noResults.value = false
+  videos.value = []
+}
 </script>
 
+<style lang="scss">
+* {
+  font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+}
+body {
+  font-size: 18px;
+}
+.loading {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 50vh;
+  font-size: 1.5em;
+}
+input, button, select {
+  padding: 0.5em;
+  margin-right: 0.5em;
+  margin-bottom: 2em;
+  font-size: 0.9em;
+}
+table {
+  width: 100%;
+
+  tbody tr {
+    &:hover:not(.no-videos) {
+      background-color: cornsilk;
+    }
+    &.no-videos {
+      text-align: center;
+      
+      &:hover {
+        background-color: initial;
+      }
+      div {
+        min-height: 113px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+    }
+  }
+  th {
+    padding: 1em 0.5em;
+  }
+  td {
+    padding: 0.2em 0.5em;
+  }
+  th, td {
+    border-bottom: 1px solid cornflowerblue;
+
+    &:first-child {
+      padding-left: 0;
+    }
+    &:last-child {
+      padding-right: 0;
+      text-align: center;
+    }
+  }
+}
+</style>
